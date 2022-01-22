@@ -1,9 +1,9 @@
-const TICK_MS = 350;
+const TICK_MS = 650;
 const TICK_MAX_SKEW = 10;
 
-const TILE_WIDTH=20;
+const TILE_WIDTH=25;
 
-const GRID_WIDTH=20;
+const GRID_WIDTH=10;
 
 var frameCounter = 0;
 var lastTick = 0;
@@ -15,15 +15,19 @@ enum Direction {
 	RIGHT
 }
 
+const STARTING_POSITION = Math.floor(GRID_WIDTH/2 - 1);
+
 var state = {
 	direction: Direction.RIGHT,
-	length: 5,
-	snakePosition: [9, 9],
-	applePosition: [8, 8],
-	snakeTail: [] as number[][]
+	snakePosition: [STARTING_POSITION, STARTING_POSITION],
+	applePosition: [1, 1],
+	snakeTail: [] as number[][],
+	usedTiles: {[STARTING_POSITION]: {[STARTING_POSITION]: true}}
 };
 
 type State = typeof state;
+
+var canvas: HTMLCanvasElement = null;
 
 function updateState(newState: State) {
 	// if (newState.direction != state.direction) {
@@ -33,10 +37,17 @@ function updateState(newState: State) {
 }
 
 function randomApplePosition() {
-	//var i = 0;
-	while(true) {
-		const position = [Math.floor(Math.random() * GRID_WIDTH), Math.floor(Math.random() * GRID_WIDTH)];
-		return position;
+	// figure out how many spots are left, generate a random number in that range, and walk through the grid counting off empty cells
+	// until we find our winner
+	const gridSize = GRID_WIDTH * GRID_WIDTH;
+	const emptyCells = gridSize - (state.snakeTail.length + 1);
+	const cellPosition = Math.floor(Math.random() * emptyCells);
+	var emptyCellsSeen = 0;
+	for (var i=0; i<GRID_WIDTH; i++) {
+		for (var j=0; j<GRID_WIDTH; j++) {
+			if (state.usedTiles[i] && state.usedTiles[i][j]) continue;
+			if (emptyCellsSeen++ == cellPosition) return [i,j];
+		}
 	}
 }
 
@@ -57,17 +68,41 @@ function tickAction() {
 			break;
 		}
 	}());
+
 	const ateApple = nextPosition[0] == state.applePosition[0] && nextPosition[1] == state.applePosition[1];
 
+	// Add the current head position as the first tail position
 	state.snakeTail.unshift(Object.assign({}, state.snakePosition));
 
-	if (ateApple) {
-		state.applePosition = randomApplePosition();
-	} else {
+	// If we just ate an apple, don't drop the last tail segment
+	if (!ateApple) {
 		state.snakeTail.pop()
 	}
 
 	state.snakePosition = nextPosition;
+
+	state.usedTiles = {[state.snakePosition[0]]: {[state.snakePosition[1]]: true}};
+	state.snakeTail.forEach(([x,y]) => {
+		state.usedTiles[x] = state.usedTiles[x] || {};
+		state.usedTiles[x][y] = true;
+	})
+
+	if (ateApple) {
+		state.applePosition = randomApplePosition();
+	} 
+}
+
+// If b abuts a, return the Direction that you would travel from a to get to b.  Else return null;
+function compareTiles(a: number[], b: number[]) {
+	if (b[0] == a[0]) {
+		if (b[1] == a[1]+1) return Direction.DOWN;
+		else if (b[1] == a[1]-1) return Direction.UP;
+	}
+	if (b[1] == a[1]) {
+		if (b[0] == a[0]+1) return Direction.RIGHT;
+		else if (b[0] == a[0]-1) return Direction.LEFT;
+	}
+	return null;
 }
 
 function tick() {
@@ -82,31 +117,108 @@ function tick() {
 }
 
 function draw() {
-	const canvas = document.getElementById("viewport") as HTMLCanvasElement;
-	var ctx = canvas.getContext('2d');
-
-	ctx.clearRect(0, 0, 400, 400); // clear canvas
 	
+	var ctx = canvas.getContext('2d');
+	ctx.strokeStyle = 'white';
+	ctx.clearRect(0, 0, GRID_WIDTH*TILE_WIDTH, GRID_WIDTH*TILE_WIDTH); // clear canvas
+
+	// render snake body segments, fill and borders
+	ctx.fillStyle = 'rgb(180, 180, 180)';
+	ctx.strokeStyle = 'black';
+	ctx.lineWidth = 1;
+
+	([state.snakePosition].concat(state.snakeTail)).forEach((tile, i, arr) => {
+		const [x, y] = tile;
+		var renderTop = true;
+		var renderBottom = true;
+		var renderLeft = true;
+		var renderRight = true;
+
+		const xPos = x*TILE_WIDTH;
+		const yPos = y*TILE_WIDTH;
+
+		if (i+1 < arr.length) {
+			// for all but the tail end, check what side our aft neighbor is on, dont draw a border there
+			const priorTile = arr[i+1];
+			switch (compareTiles(tile, priorTile)) {
+			case Direction.UP:
+				renderTop = false;
+				break;
+			case Direction.DOWN:
+				renderBottom = false;
+				break;
+			case Direction.LEFT:
+				renderLeft = false;
+				break;
+			case Direction.RIGHT:
+				renderRight = false;
+				break;
+			}
+		}
+
+		if (i>0) {
+			// for all but the head, check what side our forward neighbor is on, dont draw a border there
+			const nextTile = arr[i-1];
+			switch (compareTiles(tile, nextTile)) {
+			case Direction.UP:
+				renderTop = false;
+				break;
+			case Direction.DOWN:
+				renderBottom = false;
+				break;
+			case Direction.LEFT:
+				renderLeft = false;
+				break;
+			case Direction.RIGHT:
+				renderRight = false;
+				break;
+			}
+			// dont fill the head with the tail color
+			ctx.fillRect(xPos, yPos, TILE_WIDTH, TILE_WIDTH);
+		}
+
+		if (renderTop) {
+			ctx.beginPath();
+			ctx.moveTo(xPos, yPos);
+			ctx.lineTo(xPos+TILE_WIDTH, yPos);
+			ctx.stroke();
+		}
+		if (renderBottom) {
+			ctx.beginPath();
+			ctx.moveTo(xPos, yPos+TILE_WIDTH);
+			ctx.lineTo(xPos+TILE_WIDTH, yPos+TILE_WIDTH);
+			ctx.stroke();
+		}
+		if (renderLeft) {
+			ctx.beginPath();
+			ctx.moveTo(xPos, yPos);
+			ctx.lineTo(xPos, yPos+TILE_WIDTH);
+			ctx.stroke();
+		}
+		if (renderRight) {
+			ctx.beginPath();
+			ctx.moveTo(xPos+TILE_WIDTH, yPos);
+			ctx.lineTo(xPos+TILE_WIDTH, yPos+TILE_WIDTH);
+			ctx.stroke();
+		}
+	})
+
 	// render apple
 	ctx.fillStyle = 'rgb(200, 0, 0)';
 	ctx.fillRect(state.applePosition[0]*TILE_WIDTH, state.applePosition[1]*TILE_WIDTH, TILE_WIDTH, TILE_WIDTH);
 
-	// render snake head
+	// render snake head segment
 	ctx.fillStyle = 'rgb(80, 80, 80)';
 	ctx.fillRect(state.snakePosition[0]*TILE_WIDTH, state.snakePosition[1]*TILE_WIDTH, TILE_WIDTH, TILE_WIDTH);
-
-	// render snake tail
-	ctx.fillStyle = 'rgb(180, 180, 180)';
-	state.snakeTail.forEach(([x, y]) => {
-		ctx.fillRect(x*TILE_WIDTH, y*TILE_WIDTH, TILE_WIDTH, TILE_WIDTH);
-	})
 
 	frameCounter++;
 	window.requestAnimationFrame(draw)
 }
 
 function init() {
-	console.log("init")
+	canvas = document.getElementById("viewport") as HTMLCanvasElement;
+	canvas.width = GRID_WIDTH * TILE_WIDTH;
+	canvas.height = GRID_WIDTH * TILE_WIDTH;
 
 	document.addEventListener("keydown", e => {
 		if (state.direction == Direction.LEFT || state.direction == Direction.RIGHT) {
