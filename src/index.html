@@ -2,7 +2,9 @@
 	<head>
 		<script src="dist/index.js"></script>
 	</head>
-	<body onload="draw();">
-		<canvas id="viewport" style="height:800px; width:800px; border: 1px solid black;"></canvas>
+	<body onload="init();">
+		<canvas id="viewport" width="400" height="400" style="border: 1px solid black;"></canvas>
+		<br />
+		Current fps: <span id="fps-counter">0</span>
 	</body>
 </html>
