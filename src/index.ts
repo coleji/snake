@@ -1,7 +1,7 @@
-const TICK_MS = 450;
+const TICK_MS = 350;
 const TICK_MAX_SKEW = 10;
 
-const TILE_WIDTH=25;
+const TILE_WIDTH=35;
 
 const GRID_WIDTH=10;
 
