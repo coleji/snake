@@ -1,4 +1,4 @@
-const TICK_MS = 650;
+const TICK_MS = 450;
 const TICK_MAX_SKEW = 10;
 
 const TILE_WIDTH=25;
@@ -15,6 +15,12 @@ enum Direction {
 	RIGHT
 }
 
+enum PlayState {
+	PLAY,
+	WIN,
+	LOSE
+}
+
 const STARTING_POSITION = Math.floor(GRID_WIDTH/2 - 1);
 
 var state = {
@@ -22,7 +28,8 @@ var state = {
 	snakePosition: [STARTING_POSITION, STARTING_POSITION],
 	applePosition: [1, 1],
 	snakeTail: [] as number[][],
-	usedTiles: {[STARTING_POSITION]: {[STARTING_POSITION]: true}}
+	usedTiles: {[STARTING_POSITION]: {[STARTING_POSITION]: true}},
+	playState: PlayState.PLAY
 };
 
 type State = typeof state;
@@ -49,6 +56,7 @@ function randomApplePosition() {
 			if (emptyCellsSeen++ == cellPosition) return [i,j];
 		}
 	}
+	return [-1, -1];
 }
 
 function tickAction() {
@@ -81,15 +89,33 @@ function tickAction() {
 
 	state.snakePosition = nextPosition;
 
-	state.usedTiles = {[state.snakePosition[0]]: {[state.snakePosition[1]]: true}};
+	// state.usedTiles = {[state.snakePosition[0]]: {[state.snakePosition[1]]: true}};
+	state.usedTiles = {};
 	state.snakeTail.forEach(([x,y]) => {
 		state.usedTiles[x] = state.usedTiles[x] || {};
 		state.usedTiles[x][y] = true;
-	})
+	});
+
+	if (state.usedTiles[state.snakePosition[0]] && state.usedTiles[state.snakePosition[0]][state.snakePosition[1]]) {
+		// You ran into a body segment
+		state.playState = PlayState.LOSE;
+	} else {
+		state.usedTiles[state.snakePosition[0]] = state.usedTiles[state.snakePosition[0]] || {};
+		state.usedTiles[state.snakePosition[0]][state.snakePosition[1]] = true;
+	}
+
+	if (state.snakePosition[0] < 0 || state.snakePosition[0] >= GRID_WIDTH || state.snakePosition[1] < 0 || state.snakePosition[1] >= GRID_WIDTH) {
+		// You hit a wall
+		state.playState = PlayState.LOSE;
+	}
 
 	if (ateApple) {
 		state.applePosition = randomApplePosition();
-	} 
+		if (state.applePosition[0] == -1 && state.applePosition[1] == -1) {
+			// Nowhere left to put the apple!
+			state.playState = PlayState.WIN
+		}
+	}
 }
 
 // If b abuts a, return the Direction that you would travel from a to get to b.  Else return null;
@@ -113,7 +139,16 @@ function tick() {
 	}
 	lastTick = now;
 	tickAction();
-	window.setTimeout(tick, TICK_MS)
+	switch (state.playState) {
+	case PlayState.PLAY:
+		window.setTimeout(tick, TICK_MS);
+		break;
+	case PlayState.WIN:
+		alert("You win!");
+		break;
+	case PlayState.LOSE:
+		alert("You lose :(")
+	}	
 }
 
 function draw() {
@@ -245,7 +280,7 @@ function init() {
 	});
 
 	window.setInterval(function() {
-		document.getElementById("fps-counter").innerHTML = String(frameCounter);
+		// document.getElementById("fps-counter").innerHTML = String(frameCounter);
 		frameCounter = 0;
 	}, 1000);
 
