@@ -29,7 +29,9 @@ var state = {
 	applePosition: [1, 1],
 	snakeTail: [] as number[][],
 	usedTiles: {[STARTING_POSITION]: {[STARTING_POSITION]: true}},
-	playState: PlayState.PLAY
+	playState: PlayState.PLAY,
+	stepsTakenDir: 0,
+	priorDir: Direction.DOWN
 };
 
 type State = typeof state;
@@ -88,6 +90,7 @@ function tickAction() {
 	}
 
 	state.snakePosition = nextPosition;
+	state.stepsTakenDir++;
 
 	// state.usedTiles = {[state.snakePosition[0]]: {[state.snakePosition[1]]: true}};
 	state.usedTiles = {};
@@ -256,27 +259,34 @@ function init() {
 	canvas.height = GRID_WIDTH * TILE_WIDTH;
 
 	document.addEventListener("keydown", e => {
+		const changingDir = {
+			stepsTakenDir: 0,
+			priorDir: state.direction
+		}
 		if (state.direction == Direction.LEFT || state.direction == Direction.RIGHT) {
 			switch (e.key) {
 			case "ArrowUp":
-				updateState({ ...state, direction: Direction.UP });
+				if (state.priorDir == Direction.DOWN && state.stepsTakenDir == 0) return;
+				updateState({ ...state, ...changingDir, direction: Direction.UP,  });
 				break;
 			case "ArrowDown":
-				updateState({ ...state, direction: Direction.DOWN });
+				if (state.priorDir == Direction.UP && state.stepsTakenDir == 0) return;
+				updateState({ ...state, ...changingDir, direction: Direction.DOWN });
 				break;
 			}
 		}
 		if (state.direction == Direction.UP || state.direction == Direction.DOWN) {
 			switch (e.key) {
 			case "ArrowLeft":
-				updateState({ ...state, direction: Direction.LEFT });
+				if (state.priorDir == Direction.RIGHT && state.stepsTakenDir == 0) return;
+				updateState({ ...state, ...changingDir, direction: Direction.LEFT });
 				break;
 			case "ArrowRight":
-				updateState({ ...state, direction: Direction.RIGHT });
+				if (state.priorDir == Direction.LEFT && state.stepsTakenDir == 0) return;
+				updateState({ ...state, ...changingDir, direction: Direction.RIGHT });
 				break;
 			}
 		}
-
 	});
 
 	window.setInterval(function() {
